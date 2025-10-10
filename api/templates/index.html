@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Elenco PDF</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 40px; background: #f8f9fa; }
+        h1 { color: #333; }
+        ul { list-style: none; padding: 0; }
+        li { margin: 12px 0; }
+        a { text-decoration: none; color: #007bff; font-size: 18px; }
+        a:hover { text-decoration: underline; }
+        .no-files { color: #888; }
+    </style>
+</head>
+<body>
+    <h1>📚 PDF disponibili</h1>
+    <ul>
+        {% for pdf in pdf_files %}
+            <li>➡️ <a href="{{ url_for('view_pdf', pdf_name=pdf.url_name) }}">{{ pdf.name }}</a></li>
+        {% else %}
+            <li class="no-files"><em>Nessuna cartella di immagini trovata</em></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

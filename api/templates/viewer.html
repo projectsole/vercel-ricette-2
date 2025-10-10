@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ pdf_name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+        h1 { color: #333; }
+        a { text-decoration: none; color: #007bff; }
+        a:hover { text-decoration: underline; }
+        .toolbar {
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            margin: 15px 0 25px; position: sticky; top: 0; background: #f8f9fa;
+            padding: 10px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); z-index: 10;
+        }
+        .toolbar input { width: 80px; padding: 6px; font-size: 16px; text-align: center; }
+        .toolbar button { background: #007bff; border: none; color: white; padding: 8px 14px; border-radius: 6px; font-size: 16px; }
+        .toolbar button:disabled { background: #ccc; }
+        .toolbar button:hover { background: #0056b3; }
+        img { display: block; max-width: 95%; margin: 20px auto; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <a href="/">← Torna all’elenco</a>
+    <h1>{{ pdf_name }}</h1>
+
+    <!-- Barra di navigazione -->
+    <div class="toolbar">
+        <button id="prevBtn">⏮️</button>
+        <label>Pagina:</label>
+        <input type="number" id="pageInput" min="1" value="1">
+        <span>/ {{ images|length }}</span>
+        <button id="nextBtn">⏭️</button>
+    </div>
+
+    <!-- Immagini -->
+    {% for img in images %}
+        <img src="{{ url_for('serve_image', folder=pdf_name, filename=img) }}" alt="Pagina {{ loop.index }}" id="page-{{ loop.index }}">
+    {% endfor %}
+
+    <script>
+        const totalPages = {{ images|length }};
+        const pageInput = document.getElementById('pageInput');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        function scrollToPage(num) {
+            const page = document.getElementById('page-' + num);
+            if (page) { page.scrollIntoView({ behavior: 'smooth', block: 'start' }); pageInput.value = num; }
+        }
+
+        prevBtn.addEventListener('click', () => {
+            let current = parseInt(pageInput.value);
+            if (current > 1) scrollToPage(current - 1);
+        });
+
+        nextBtn.addEventListener('click', () => {
+            let current = parseInt(pageInput.value);
+            if (current < totalPages) scrollToPage(current + 1);
+        });
+
+        pageInput.addEventListener('change', () => {
+            let val = parseInt(pageInput.value);
+            if (val >= 1 && val <= totalPages) scrollToPage(val);
+        });
+    </script>
+</body>
+</html>
