@@ -2,25 +2,48 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Elenco PDF</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ricette</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 40px; background: #f8f9fa; }
-        h1 { color: #333; }
-        ul { list-style: none; padding: 0; }
-        li { margin: 12px 0; }
-        a { text-decoration: none; color: #007bff; font-size: 18px; }
+        body { font-family: Arial, sans-serif; padding: 20px 20px 40px; background: #f8f9fa; margin: 0; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .search-box {
+            width: 100%; max-width: 500px; padding: 12px 16px;
+            font-size: 17px; border: 2px solid #ddd; border-radius: 10px;
+            box-sizing: border-box; margin-bottom: 24px;
+            -webkit-appearance: none;
+        }
+        .search-box:focus { outline: none; border-color: #007bff; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { margin: 10px 0; }
+        a { text-decoration: none; color: #007bff; font-size: 18px; display: block; padding: 8px 0; }
         a:hover { text-decoration: underline; }
         .no-files { color: #888; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <h1>📚 PDF disponibili</h1>
-    <ul>
+    <h1>Ricette</h1>
+    <input type="search" class="search-box" placeholder="Cerca ricetta..." id="searchInput" autocomplete="off">
+    <ul id="recipeList">
         {% for pdf in pdf_files %}
-            <li>➡️ <a href="{{ url_for('view_pdf', pdf_name=pdf.url_name) }}">{{ pdf.name }}</a></li>
+            <li data-name="{{ pdf.name|lower }}">
+                <a href="{{ url_for('view_pdf', pdf_name=pdf.url_name) }}">{{ pdf.name | replace('.pdf', '') | replace('_', ' ') | title }}</a>
+            </li>
         {% else %}
-            <li class="no-files"><em>Nessuna cartella di immagini trovata</em></li>
+            <li class="no-files"><em>Nessuna ricetta trovata</em></li>
         {% endfor %}
     </ul>
+    <script>
+        const input = document.getElementById('searchInput');
+        const items = document.querySelectorAll('#recipeList li[data-name]');
+        input.addEventListener('input', function() {
+            const q = this.value.toLowerCase().replace(/_/g, ' ');
+            items.forEach(function(li) {
+                const name = li.getAttribute('data-name').replace(/_/g, ' ').replace('.pdf', '');
+                li.classList.toggle('hidden', name.indexOf(q) === -1);
+            });
+        });
+    </script>
 </body>
 </html>
