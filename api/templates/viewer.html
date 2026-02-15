@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ pdf_name | replace('.pdf', '') | replace('_', ' ') | title }}</title>
+    <title>{{ pdf_name | replace('_', ' ') | title }}</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 10px 10px 40px; background: #f8f9fa; margin: 0; }
         h1 { color: #333; font-size: 22px; margin: 8px 0 4px; }
@@ -11,40 +11,117 @@
         a:hover { text-decoration: underline; }
         .toolbar {
             display: flex; justify-content: center; align-items: center; gap: 10px;
-            margin: 10px 0 16px; position: sticky; top: 0; background: #f8f9fa;
+            flex-wrap: wrap;
+            margin: 10px 0 0; position: sticky; top: 0; background: #f8f9fa;
             padding: 8px; z-index: 10;
         }
-        .toolbar input { width: 60px; padding: 6px; font-size: 16px; text-align: center; border: 1px solid #ccc; border-radius: 6px; }
+        .toolbar input[type="number"] { width: 60px; padding: 6px; font-size: 16px; text-align: center; border: 1px solid #ccc; border-radius: 6px; }
         .toolbar button { background: #007bff; border: none; color: white; padding: 8px 14px; border-radius: 6px; font-size: 16px; cursor: pointer; }
         .toolbar button:hover { background: #0056b3; }
         img { display: block; max-width: 100%; margin: 12px auto; border-radius: 4px; }
+
+        /* Search */
+        .search-container {
+            position: sticky; top: 52px; z-index: 10;
+            background: #f8f9fa; padding: 0 8px 10px; margin: 0 0 6px;
+            display: flex; justify-content: center;
+        }
+        .search-wrapper {
+            position: relative; width: 100%; max-width: 400px;
+        }
+        .search-input {
+            width: 100%; padding: 8px 12px; font-size: 15px;
+            border: 1px solid #ccc; border-radius: 8px;
+            box-sizing: border-box; -webkit-appearance: none;
+        }
+        .search-input:focus { outline: none; border-color: #007bff; }
+        .search-results {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #ddd; border-top: none;
+            border-radius: 0 0 8px 8px; max-height: 250px; overflow-y: auto;
+            display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .search-results.visible { display: block; }
+        .search-result-item {
+            padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background: #e9f0ff; }
+        .search-result-page { font-weight: bold; color: #007bff; margin-right: 6px; }
+        .search-result-text { color: #555; }
+        .search-result-text mark { background: #fff3cd; padding: 0 2px; border-radius: 2px; }
+        .search-no-results {
+            padding: 12px 14px; color: #888; font-size: 14px; text-align: center;
+        }
     </style>
 </head>
 <body>
-    <a href="/">← Torna all'elenco</a>
-    <h1>{{ pdf_name | replace('.pdf', '') | replace('_', ' ') | title }}</h1>
+    <a href="/">&#8592; Torna all'elenco</a>
+    <h1>{{ pdf_name | replace('_', ' ') | title }}</h1>
 
     <div class="toolbar">
-        <button id="prevBtn">◀</button>
+        <button id="prevBtn">&#9664;</button>
         <span>Pag.</span>
         <input type="number" id="pageInput" min="1" value="1">
         <span>/ {{ images|length }}</span>
-        <button id="nextBtn">▶</button>
+        <button id="nextBtn">&#9654;</button>
     </div>
 
-    {% for img in images %}
-        <img src="{{ url_for('serve_image', folder=pdf_name, filename=img) }}"
-             alt="Pagina {{ loop.index }}"
-             id="page-{{ loop.index }}"
-             loading="lazy"
-             decoding="async">
-    {% endfor %}
+    <div class="search-container">
+        <div class="search-wrapper">
+            <input type="search" class="search-input" id="searchInput" placeholder="Cerca nel documento..." autocomplete="off">
+            <div class="search-results" id="searchResults"></div>
+        </div>
+    </div>
+
+    <div id="imageContainer"></div>
+    <div id="loadingTrigger" style="height: 1px;"></div>
 
     <script>
-        var totalPages = {{ images|length }};
+        var allImages = {{ images | tojson }};
+        var totalPages = allImages.length;
+        var BATCH_SIZE = 10;
+        var loadedCount = 0;
+        var container = document.getElementById('imageContainer');
         var pageInput = document.getElementById('pageInput');
+        var searchInput = document.getElementById('searchInput');
+        var searchResults = document.getElementById('searchResults');
+        var searchIndex = null;
+        var pdfName = {{ pdf_name | tojson }};
+
+        function loadBatch(upTo) {
+            var target = Math.min(upTo || loadedCount + BATCH_SIZE, totalPages);
+            while (loadedCount < target) {
+                var img = document.createElement('img');
+                img.src = '/static/images/' + encodeURIComponent(pdfName) + '/' + allImages[loadedCount];
+                img.alt = 'Pagina ' + (loadedCount + 1);
+                img.id = 'page-' + (loadedCount + 1);
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                container.appendChild(img);
+                loadedCount++;
+            }
+        }
+
+        // Carica le prime 10
+        loadBatch();
+
+        // Infinite scroll
+        var observer = new IntersectionObserver(function(entries) {
+            if (entries[0].isIntersecting && loadedCount < totalPages) {
+                loadBatch();
+            }
+        }, { rootMargin: '600px' });
+        observer.observe(document.getElementById('loadingTrigger'));
+
+        // Carica l'indice di ricerca
+        fetch('/search_index/{{ pdf_name | urlencode }}')
+            .then(function(r) { return r.json(); })
+            .then(function(data) { searchIndex = data.pages || {}; });
 
         function scrollToPage(num) {
+            if (num > loadedCount) loadBatch(num);
             var page = document.getElementById('page-' + num);
             if (page) { page.scrollIntoView({ block: 'start' }); pageInput.value = num; }
         }
@@ -62,6 +139,125 @@
         pageInput.addEventListener('change', function() {
             var v = parseInt(pageInput.value);
             if (v >= 1 && v <= totalPages) scrollToPage(v);
+        });
+
+        // Utility: crea uno snippet con evidenziazione sicura (no innerHTML)
+        function buildHighlightedSnippet(text, query) {
+            var frag = document.createDocumentFragment();
+            var lower = text.toLowerCase();
+            var qLower = query.toLowerCase();
+            var pos = 0;
+            var idx;
+            while ((idx = lower.indexOf(qLower, pos)) !== -1) {
+                if (idx > pos) {
+                    frag.appendChild(document.createTextNode(text.substring(pos, idx)));
+                }
+                var mark = document.createElement('mark');
+                mark.textContent = text.substring(idx, idx + query.length);
+                frag.appendChild(mark);
+                pos = idx + query.length;
+            }
+            if (pos < text.length) {
+                frag.appendChild(document.createTextNode(text.substring(pos)));
+            }
+            return frag;
+        }
+
+        function clearResults() {
+            while (searchResults.firstChild) {
+                searchResults.removeChild(searchResults.firstChild);
+            }
+            searchResults.classList.remove('visible');
+        }
+
+        // Ricerca
+        var debounceTimer;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            var query = this.value.trim();
+
+            if (!query || query.length < 2 || !searchIndex) {
+                clearResults();
+                return;
+            }
+
+            debounceTimer = setTimeout(function() {
+                // Svuota risultati precedenti
+                while (searchResults.firstChild) {
+                    searchResults.removeChild(searchResults.firstChild);
+                }
+
+                var qLower = query.toLowerCase();
+                var results = [];
+                var keys = Object.keys(searchIndex);
+                for (var i = 0; i < keys.length; i++) {
+                    var pageNum = keys[i];
+                    var text = searchIndex[pageNum];
+                    if (text && text.toLowerCase().indexOf(qLower) !== -1) {
+                        var idx = text.toLowerCase().indexOf(qLower);
+                        var start = Math.max(0, idx - 30);
+                        var end = Math.min(text.length, idx + query.length + 30);
+                        var snippet = (start > 0 ? '...' : '') +
+                                      text.substring(start, end) +
+                                      (end < text.length ? '...' : '');
+                        results.push({ page: parseInt(pageNum), snippet: snippet });
+                    }
+                }
+
+                results.sort(function(a, b) { return a.page - b.page; });
+
+                if (results.length === 0) {
+                    var noRes = document.createElement('div');
+                    noRes.className = 'search-no-results';
+                    noRes.textContent = 'Nessun risultato';
+                    searchResults.appendChild(noRes);
+                } else {
+                    for (var j = 0; j < results.length; j++) {
+                        var r = results[j];
+                        var item = document.createElement('div');
+                        item.className = 'search-result-item';
+                        item.setAttribute('data-page', r.page);
+
+                        var pageSpan = document.createElement('span');
+                        pageSpan.className = 'search-result-page';
+                        pageSpan.textContent = 'Pag. ' + r.page;
+
+                        var textSpan = document.createElement('span');
+                        textSpan.className = 'search-result-text';
+                        textSpan.appendChild(buildHighlightedSnippet(r.snippet, query));
+
+                        item.appendChild(pageSpan);
+                        item.appendChild(textSpan);
+                        searchResults.appendChild(item);
+                    }
+                }
+                searchResults.classList.add('visible');
+            }, 200);
+        });
+
+        // Click su un risultato -> vai alla pagina
+        searchResults.addEventListener('click', function(e) {
+            var item = e.target.closest('.search-result-item');
+            if (item) {
+                var page = parseInt(item.getAttribute('data-page'));
+                scrollToPage(page);
+                searchResults.classList.remove('visible');
+                searchInput.blur();
+            }
+        });
+
+        // Chiudi risultati quando si clicca fuori
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-wrapper')) {
+                searchResults.classList.remove('visible');
+            }
+        });
+
+        // Riapri risultati quando si clicca sulla search
+        searchInput.addEventListener('focus', function() {
+            if (searchResults.childNodes.length > 0 && this.value.trim().length >= 2) {
+                searchResults.classList.add('visible');
+            }
         });
     </script>
 </body>
